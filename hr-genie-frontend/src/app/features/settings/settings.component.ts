@@ -1,5 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -8,24 +8,27 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { MatDividerModule } from '@angular/material/divider';
+import { MatDialog } from '@angular/material/dialog';
+import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { SettingsService } from '../../core/services/settings.service';
 import { PageHeaderComponent } from '../../shared/components/page-header/page-header.component';
-import { AIProvider } from '../../core/models';
+import { ManageUsersComponent } from '../auth/manage-users.component';
+import { AIProvider, ApprovalLevel } from '../../core/models';
+import { CommonModule } from '@angular/common';
 
-type SettingsSection = 'general' | 'ai' | 'templates' | 'approval' | 'email' | 'security' | 'integrations';
+type SettingsSection = 'general' | 'ai' | 'templates' | 'approval' | 'email' | 'security' | 'integrations' | 'users';
 
 @Component({
   selector: 'app-settings',
   standalone: true,
   imports: [
-    CommonModule, ReactiveFormsModule,
+    CommonModule, RouterLink, ReactiveFormsModule,
     MatIconModule, MatButtonModule, MatFormFieldModule,
     MatInputModule, MatSelectModule, MatSlideToggleModule,
-    MatTooltipModule,
-    PageHeaderComponent,
+    MatTooltipModule, MatDialogModule,
+    PageHeaderComponent, ManageUsersComponent,
   ],
   template: `
     <div class="page-container fade-in-up">
@@ -213,8 +216,8 @@ type SettingsSection = 'general' | 'ai' | 'templates' | 'approval' | 'email' | '
                 }
               </div>
 
-              <div style="margin-top:20px; display:flex; gap:10px;">
-                <button mat-button class="btn-secondary">
+              <div style="margin-top:20px; display:flex; gap:10px; padding: 0 24px 20px;">
+                <button mat-button class="btn-secondary" (click)="openAddLevel()">
                   <mat-icon>add</mat-icon>
                   Add Approval Level
                 </button>
@@ -294,17 +297,89 @@ type SettingsSection = 'general' | 'ai' | 'templates' | 'approval' | 'email' | '
             </div>
           }
 
-          <!-- Placeholder for other sections -->
-          @if (activeSection() === 'templates' || activeSection() === 'integrations') {
+          <!-- Document Templates -->
+          @if (activeSection() === 'templates') {
             <div class="settings-section card">
               <div class="section-hdr">
-                <h2 class="section-hdr-title">{{ sectionLabel() }}</h2>
-                <p class="section-hdr-sub">Configure {{ sectionLabel().toLowerCase() }} settings</p>
+                <h2 class="section-hdr-title">Document Templates</h2>
+                <p class="section-hdr-sub">Configure default templates used for letter and annexure generation</p>
               </div>
-              <div class="coming-soon">
-                <mat-icon>construction</mat-icon>
-                <p>This section is coming soon.</p>
+              <div class="template-list">
+                @for (t of docTemplateSettings; track t.type) {
+                  <div class="template-setting-row">
+                    <div class="tsr-icon">
+                      <mat-icon>{{ t.icon }}</mat-icon>
+                    </div>
+                    <div class="tsr-info">
+                      <p class="tsr-name">{{ t.type }}</p>
+                      <p class="tsr-desc">{{ t.desc }}</p>
+                    </div>
+                    <div class="tsr-actions">
+                      <span class="tsr-version">v{{ t.version }}</span>
+                      <button mat-button class="btn-secondary tsr-btn" [routerLink]="['/templates']">
+                        <mat-icon>edit</mat-icon>
+                        Edit
+                      </button>
+                      <button mat-button class="btn-secondary tsr-btn" [routerLink]="['/templates']">
+                        <mat-icon>visibility</mat-icon>
+                        Preview
+                      </button>
+                    </div>
+                  </div>
+                }
               </div>
+              <div style="padding:16px 24px; border-top:1px solid var(--color-border);">
+                <button mat-flat-button class="btn-primary" [routerLink]="['/templates']">
+                  <mat-icon>open_in_new</mat-icon>
+                  Manage All Templates
+                </button>
+              </div>
+            </div>
+          }
+
+          <!-- Integrations -->
+          @if (activeSection() === 'integrations') {
+            <div class="settings-section card">
+              <div class="section-hdr">
+                <h2 class="section-hdr-title">Integrations</h2>
+                <p class="section-hdr-sub">Connect HRGenie with external tools and services</p>
+              </div>
+              <div class="integration-list">
+                @for (intg of integrations(); track intg.name) {
+                  <div class="intg-row">
+                    <div class="intg-icon" [style.background]="intg.bg">
+                      <mat-icon [style.color]="intg.color">{{ intg.icon }}</mat-icon>
+                    </div>
+                    <div class="intg-info">
+                      <p class="intg-name">{{ intg.name }}</p>
+                      <p class="intg-desc">{{ intg.desc }}</p>
+                    </div>
+                    <div class="intg-actions">
+                      @if (intg.connected) {
+                        <span class="intg-badge connected">
+                          <mat-icon>check_circle</mat-icon>
+                          Connected
+                        </span>
+                        <button mat-button class="btn-secondary tsr-btn" (click)="disconnectIntegration(intg.name)">
+                          Disconnect
+                        </button>
+                      } @else {
+                        <span class="intg-badge">Not connected</span>
+                        <button mat-flat-button class="btn-primary tsr-btn" (click)="connectIntegration(intg.name)">
+                          <mat-icon>add</mat-icon>
+                          Connect
+                        </button>
+                      }
+                    </div>
+                  </div>
+                }
+              </div>
+            </div>
+          }
+          <!-- Manage Users (Admin only) -->
+          @if (activeSection() === 'users') {
+            <div class="settings-section card" style="padding:20px 24px;">
+              <app-manage-users />
             </div>
           }
         </div>
@@ -442,11 +517,70 @@ type SettingsSection = 'general' | 'ai' | 'templates' | 'approval' | 'email' | '
     .level-actions { display: flex; gap: 2px; }
     .level-connector { display: flex; justify-content: center; padding: 4px 0; mat-icon { color: #d1d5db; font-size: 18px; } }
 
-    .coming-soon {
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      padding: 60px; color: var(--color-text-muted);
-      mat-icon { font-size: 36px; width: 36px; height: 36px; margin-bottom: 10px; }
-      p { font-size: 0.875rem; margin: 0; }
+    /* Document Templates section */
+    .template-list { padding: 0 24px; }
+
+    .template-setting-row {
+      display: flex; align-items: center; gap: 14px;
+      padding: 14px 0; border-bottom: 1px solid var(--color-border);
+      flex-wrap: wrap; gap: 10px;
+
+      &:last-child { border-bottom: none; }
+    }
+
+    .tsr-icon {
+      width: 38px; height: 38px; background: #f5f3ff; border-radius: 9px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      mat-icon { color: #7c3aed; font-size: 20px; width: 20px; height: 20px; }
+    }
+
+    .tsr-info { flex: 1; min-width: 140px; }
+    .tsr-name { font-size: 0.875rem; font-weight: 600; color: var(--color-text-primary); margin: 0 0 2px; }
+    .tsr-desc { font-size: 0.75rem; color: var(--color-text-muted); margin: 0; }
+
+    .tsr-actions {
+      display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+    }
+
+    .tsr-version {
+      font-size: 0.72rem; font-weight: 600; color: #6b7280;
+      background: #f3f4f6; padding: 2px 7px; border-radius: 6px;
+    }
+
+    .tsr-btn { height: 32px !important; padding: 0 10px !important; font-size: 0.78rem !important; }
+
+    /* Integrations section */
+    .integration-list { padding: 0 24px 16px; }
+
+    .intg-row {
+      display: flex; align-items: center; gap: 14px;
+      padding: 14px 0; border-bottom: 1px solid var(--color-border);
+      flex-wrap: wrap;
+
+      &:last-child { border-bottom: none; }
+    }
+
+    .intg-icon {
+      width: 42px; height: 42px; border-radius: 10px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      mat-icon { font-size: 22px; width: 22px; height: 22px; }
+    }
+
+    .intg-info { flex: 1; min-width: 140px; }
+    .intg-name { font-size: 0.875rem; font-weight: 600; color: var(--color-text-primary); margin: 0 0 2px; }
+    .intg-desc { font-size: 0.75rem; color: var(--color-text-muted); margin: 0; }
+
+    .intg-actions { display: flex; align-items: center; gap: 8px; }
+
+    .intg-badge {
+      font-size: 0.72rem; font-weight: 600; padding: 2px 9px;
+      border-radius: 12px; background: #f3f4f6; color: #9ca3af; white-space: nowrap;
+
+      &.connected {
+        display: flex; align-items: center; gap: 4px;
+        background: #dcfce7; color: #16a34a;
+        mat-icon { font-size: 13px; width: 13px; height: 13px; }
+      }
     }
   `]
 })
@@ -454,6 +588,7 @@ export class SettingsComponent {
   private settingsService = inject(SettingsService);
   private snackBar = inject(MatSnackBar);
   private fb = inject(FormBuilder);
+  private dialog = inject(MatDialog);
 
   activeSection = signal<SettingsSection>('ai');
   testStatus = signal<'idle' | 'testing' | 'success' | 'error'>('idle');
@@ -461,13 +596,14 @@ export class SettingsComponent {
   approvalLevels = signal(this.settingsService.getApprovalLevels());
 
   navItems: { key: SettingsSection; label: string; icon: string }[] = [
-    { key: 'general', label: 'General', icon: 'settings' },
-    { key: 'ai', label: 'AI Configuration', icon: 'auto_awesome' },
-    { key: 'templates', label: 'Document Templates', icon: 'article' },
-    { key: 'approval', label: 'Approval Workflow', icon: 'approval' },
-    { key: 'email', label: 'Email Configuration', icon: 'email' },
-    { key: 'security', label: 'Security', icon: 'security' },
-    { key: 'integrations', label: 'Integrations', icon: 'extension' },
+    { key: 'general',      label: 'General',            icon: 'settings' },
+    { key: 'ai',           label: 'AI Configuration',   icon: 'auto_awesome' },
+    { key: 'templates',    label: 'Document Templates', icon: 'article' },
+    { key: 'approval',     label: 'Approval Workflow',  icon: 'approval' },
+    { key: 'email',        label: 'Email Configuration',icon: 'email' },
+    { key: 'security',     label: 'Security',           icon: 'security' },
+    { key: 'integrations', label: 'Integrations',       icon: 'extension' },
+    { key: 'users',        label: 'Manage Users',       icon: 'group' },
   ];
 
   private _aiSettings = this.settingsService.getAISettings();
@@ -489,7 +625,53 @@ export class SettingsComponent {
     return this.navItems.find(n => n.key === this.activeSection())?.label ?? '';
   }
 
-  onProviderChange() {
+  // ── Document template settings data ──────────────────────────────────────
+  docTemplateSettings = [
+    { type: 'Increment Letter',  icon: 'trending_up',       desc: 'Template for annual/special increment letters', version: '3' },
+    { type: 'Salary Annexure',   icon: 'attach_file',       desc: 'Salary structure breakdown table',              version: '2' },
+    { type: 'Promotion Letter',  icon: 'workspace_premium', desc: 'Employee promotion notification letter',         version: '1' },
+    { type: 'Transfer Letter',   icon: 'swap_horiz',        desc: 'Interdepartmental transfer letter',             version: '1' },
+    { type: 'Offer Letter',      icon: 'work',              desc: 'New hire offer letter template',                version: '2' },
+  ];
+
+  // ── Integrations data ────────────────────────────────────────────────────
+  integrations = signal([
+    { name: 'Slack',          icon: 'message',        bg: '#f0f9ff', color: '#0284c7', desc: 'Send increment notifications to Slack channels',    connected: false },
+    { name: 'Microsoft Teams',icon: 'people',         bg: '#f5f3ff', color: '#7c3aed', desc: 'Push approval requests to Teams channels',          connected: false },
+    { name: 'Google Workspace',icon: 'email',         bg: '#f0fdf4', color: '#16a34a', desc: 'Sync HR data with Google Workspace',                connected: false },
+    { name: 'SAP HCM',        icon: 'corporate_fare', bg: '#fff7ed', color: '#ea580c', desc: 'Bidirectional sync with SAP HR module',             connected: false },
+    { name: 'Workday',        icon: 'work',           bg: '#fef9c3', color: '#a16207', desc: 'Connect with Workday HRIS for employee data',       connected: false },
+    { name: 'AWS S3',         icon: 'cloud',          bg: '#f0f9ff', color: '#0369a1', desc: 'Store generated documents in S3 or Cloudflare R2',  connected: true  },
+  ]);
+
+  connectIntegration(name: string) {
+    this.snackBar.open(`${name} integration connected!`, 'Close', { duration: 2500 });
+    this.integrations.update(list =>
+      list.map(i => i.name === name ? { ...i, connected: true } : i)
+    );
+  }
+
+  disconnectIntegration(name: string) {
+    this.snackBar.open(`${name} disconnected.`, 'Close', { duration: 2500 });
+    this.integrations.update(list =>
+      list.map(i => i.name === name ? { ...i, connected: false } : i)
+    );
+  }
+
+  // ── Add Approval Level dialog ─────────────────────────────────────────────
+  openAddLevel() {
+    const name = window.prompt('Enter approval level name (e.g. Department Head):');
+    if (!name?.trim()) return;
+    const role = window.prompt('Enter role (e.g. Department Head):') ?? name;
+    const newLevel: ApprovalLevel = {
+      id: 'al' + Date.now(),
+      order: this.approvalLevels().length + 1,
+      role: role.trim(),
+      label: name.trim(),
+    };
+    this.approvalLevels.update(levels => [...levels, newLevel]);
+    this.snackBar.open('Approval level added!', 'Close', { duration: 2000 });
+  }  onProviderChange() {
     const provider = this.aiForm.value.provider as AIProvider ?? 'OpenAI';
     const models = this.settingsService.getModels(provider);
     this.availableModels.set(models);

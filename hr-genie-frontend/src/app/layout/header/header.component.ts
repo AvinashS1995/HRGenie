@@ -7,7 +7,6 @@ import { MatBadgeModule } from '@angular/material/badge';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { AuthService } from '../../core/services/auth.service';
 import { NotificationService } from '../../core/services/notification.service';
-
 @Component({
   selector: 'app-header',
   standalone: true,
@@ -105,7 +104,7 @@ import { NotificationService } from '../../core/services/notification.service';
             <mat-icon>manage_accounts</mat-icon>
             <span>Account Settings</span>
           </button>
-          <button mat-menu-item>
+          <button mat-menu-item (click)="authService.logout()">
             <mat-icon>logout</mat-icon>
             <span>Sign Out</span>
           </button>

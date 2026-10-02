@@ -1,8 +1,18 @@
 import { Routes } from '@angular/router';
+import { authGuard, guestGuard } from './core/guards/auth.guard';
 
 export const routes: Routes = [
+  // ── Public routes ────────────────────────────────────────────────────────
+  {
+    path: 'login',
+    canActivate: [guestGuard],
+    loadComponent: () => import('./features/auth/login.component').then(m => m.LoginComponent),
+  },
+
+  // ── Protected routes (wrapped in shell) ───────────────────────────────────
   {
     path: '',
+    canActivate: [authGuard],
     loadComponent: () => import('./layout/shell/shell.component').then(m => m.ShellComponent),
     children: [
       {
@@ -40,11 +50,11 @@ export const routes: Routes = [
       },
       {
         path: 'salary-structure',
-        loadComponent: () => import('./features/reports/reports.component').then(m => m.ReportsComponent),
+        loadComponent: () => import('./features/salary-structure/salary-structure.component').then(m => m.SalaryStructureComponent),
       },
       {
         path: 'documents',
-        loadComponent: () => import('./features/employees/employees.component').then(m => m.EmployeesComponent),
+        loadComponent: () => import('./features/documents/documents.component').then(m => m.DocumentsComponent),
       },
       {
         path: '**',
@@ -52,4 +62,7 @@ export const routes: Routes = [
       },
     ],
   },
+
+  // ── Fallback ──────────────────────────────────────────────────────────────
+  { path: '**', redirectTo: 'login' },
 ];

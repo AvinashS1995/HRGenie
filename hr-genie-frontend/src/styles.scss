@@ -451,3 +451,18 @@ apx-chart {
     max-width: 100% !important;
   }
 }
+
+// ─── Dialog responsive constraints ───────────────────────────────────────────
+.mat-mdc-dialog-container {
+  .mdc-dialog__surface {
+    border-radius: var(--card-radius) !important;
+  }
+}
+
+// On mobile: dialog fills almost the full screen width with small margin
+@media (max-width: 600px) {
+  .cdk-overlay-pane {
+    width: 95vw !important;
+    max-width: 95vw !important;
+  }
+}
